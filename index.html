@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>gw_editor</title>
+  <style>
+    body {
+      font-family: monospace;
+      background:#111;
+      color:#eee;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      margin:0;
+      padding:0;
+      min-height:100vh;
+    }
+    h2 { margin:10px; }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: #222;
+      padding: 5px 10px;
+      border-radius: 5px;
+    }
+    .grid {
+      display:grid;
+      grid-template-columns: repeat(10, 20px);
+      grid-template-rows: repeat(10, 20px);
+      gap:1px;
+      margin:10px;
+    }
+    .cell {
+      width:20px;
+      height:20px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      position:relative;
+    }
+    .cell img {
+      width:20px;
+      height:20px;
+      display:block;
+    }
+    .palette {
+      display:flex;
+      flex-direction:column;
+      gap:0px;
+      margin:10px;
+      border: 5px dotted gray;
+      padding: 5px 20px;
+    }
+    .palette-section {
+      display:flex;
+      flex-wrap:wrap;
+      gap:4px;
+      align-items:center;
+    }
+    .palette-section h3 {
+      width:100%;
+      margin:4px 0;
+      font-size:14px;
+      color:#aaa;
+    }
+    .palette button {
+      padding:2px;
+      cursor:pointer;
+      background:#222;
+      border-radius:5px;
+      position:relative;
+    }
+    .palette button.selected::after {
+      content:"";
+      position:absolute;
+      top:0; left:0; right:0; bottom:0;
+      background:rgba(0,0,0,0.5);
+      transform: scale(0.5);
+      border-radius:30px;
+    }
+    .cell.placed {
+      outline:5px dotted white;
+      transform: scale(0.9);
+      opacity: 0.2;
+    }
+    .metadata {
+      margin:10px;
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+      align-items:center;
+    }
+    .meta-line {
+      display:flex;
+      gap:8px;
+      justify-content:center;
+      width:20%;
+    }
+    input, textarea, select {
+      background:#222;
+      color:#eee;
+      border:1px solid #444;
+      font-family:monospace;
+      padding:4px;
+    }
+    input { flex:1; }
+    textarea {
+      width:200px;
+      height:60px;
+    }
+    button {
+      background:#444;
+      color:#eee;
+      border:none;
+      border-radius:4px;
+      cursor:pointer;
+      padding: 4px 8px;
+    }
+    button.export {
+      margin-top:10px;
+      padding:8px 12px;
+      font-weight:bold;
+    }
+    button:hover {
+      background:#555;
+    }
+    button.active {
+      background:#666;
+    }
+  </style>
+</head>
+<body>
+  <h2>gw <u>external editor!!!</u></h2>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="gridWidth">width [1-9]</label>
+      <input type="number" id="gridWidth" min="1" max="9" value="9">
+    </div>
+    <div class="control-group">
+      <label for="gridHeight">height [1-7]</label>
+      <input type="number" id="gridHeight" min="1" max="7" value="7">
+    </div>
+    <div class="control-group">
+      <label for="bgStyle">bg style:</label>
+      <select id="bgStyle">
+        <option value=":gw_grid:">grid</option>
+        <option value=":gw_air:">air</option>
+      </select>
+    </div>
+    <button id="clearGrid">clear</button>
+    <button id="eraser">erase</button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="palette" id="palette"></div>
+  
+  <div class="metadata">
+    <div class="meta-line">
+      <input type="text" id="title" placeholder="title">
+      <input type="text" id="username" placeholder="creator">
+    </div>
+    <textarea id="desc" placeholder="description"></textarea>
+    <button class="export" onclick="exportLevel()">export!!!!</button>
+  </div>
+
+  <script>
+    // Emoji CDN map
+    const tileMap = {
+      ":gw_block:": "https://cdn.discordapp.com/emojis/1422711135060365483.webp?size=96&quality=lossless",
+      ":gw_pillarbottom:": "https://cdn.discordapp.com/emojis/1422711227955810435.webp?size=96&quality=lossless",
+      ":gw_straight:": "https://cdn.discordapp.com/emojis/1422711305567211590.webp?size=96&quality=lossless",
+      ":gw_edge:": "https://cdn.discordapp.com/emojis/1422711393366441994.webp?size=96&quality=lossless",
+      ":gw_invedge:": "https://cdn.discordapp.com/emojis/1422712594011000862.webp?size=96&quality=lossless",
+      ":gw_empty:": "https://cdn.discordapp.com/emojis/1422714227264848073.webp?size=96&quality=lossless",
+      ":gw_air:": "https://cdn.discordapp.com/emojis/1422711878462869594.webp?size=96&quality=lossless",
+      ":gw_pillartop:": "https://cdn.discordapp.com/emojis/1422711934477799506.webp?size=96&quality=lossless",
+      ":gw_corner:": "https://cdn.discordapp.com/emojis/1422712014186221762.webp?size=96&quality=lossless",
+      ":gw_invcorner:": "https://cdn.discordapp.com/emojis/1422712395855298592.webp?size=96&quality=lossless",
+      ":gw_grid:": "https://cdn.discordapp.com/emojis/1422712153235918919.webp?size=96&quality=lossless",
+      ":gw_pad:": "https://cdn.discordapp.com/emojis/1422712095119773776.webp?size=96&quality=lossless",
+      ":gw_orb:": "https://cdn.discordapp.com/emojis/1422711602385518592.webp?size=96&quality=lossless",
+      ":gw_cube:": "https://cdn.discordapp.com/emojis/1422711750960353360.webp?size=96&quality=lossless",
+      ":gw_movetrigger:": "https://cdn.discordapp.com/emojis/1422711693062180905.webp?size=96&quality=lossless",
+      ":gw_color:": "https://cdn.discordapp.com/emojis/1422714899804586077.webp?size=96&quality=lossless",
+      ":gw_gencamera:": "https://cdn.discordapp.com/emojis/1422711806883004427.webp?size=96&quality=lossless",
+      ":gw_gentrigger:": "https://cdn.discordapp.com/emojis/1422714533088202752.webp?size=96&quality=lossless"
+    };
+
+    const sections = {
+      "❒ main blocks": [
+        ":gw_block:", ":gw_pillarbottom:", ":gw_straight:", ":gw_edge:", ":gw_invedge:",
+        ":gw_empty:", ":gw_pillartop:", ":gw_corner:", ":gw_invcorner:"
+      ],
+      "■ gameplay": [":gw_pad:", ":gw_orb:", ":gw_cube:"],
+      "⬤ triggers": [":gw_movetrigger:", ":gw_color:", ":gw_gencamera:", ":gw_gentrigger:"]
+    };
+
+    let currentTile = null;
+    let lastPlaced = null;
+    let gridWidth = 9;
+    let gridHeight = 7;
+    let bgStyle = ":gw_grid:";
+    const paletteDiv = document.getElementById("palette");
+    const gridDiv = document.getElementById("grid");
+    const grid = [];
+
+    // Initialize the grid
+    function initGrid() {
+      // Clear existing grid
+      gridDiv.innerHTML = "";
+      grid.length = 0;
+      
+      // Update grid styles
+      gridDiv.style.gridTemplateColumns = `repeat(${gridWidth}, 20px)`;
+      gridDiv.style.gridTemplateRows = `repeat(${gridHeight}, 20px)`;
+      
+      // Create new grid
+      for (let r = 0; r < gridHeight; r++) {
+        grid[r] = [];
+        for (let c = 0; c < gridWidth; c++) {
+          grid[r][c] = bgStyle;
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          cell.dataset.row = r;
+          cell.dataset.col = c;
+
+          const img = document.createElement("img");
+          img.src = tileMap[bgStyle];
+          cell.appendChild(img);
+
+          cell.onclick = () => {
+            if (!currentTile) return;
+            if (lastPlaced) lastPlaced.classList.remove("placed");
+            grid[r][c] = currentTile;
+            img.src = tileMap[currentTile];
+            cell.classList.add("placed");
+            lastPlaced = cell;
+          };
+          gridDiv.appendChild(cell);
+        }
+      }
+    }
+
+    // Build palette with sections
+    function buildPalette() {
+      paletteDiv.innerHTML = "";
+      
+      for (const [label, tiles] of Object.entries(sections)) {
+        const section = document.createElement("div");
+        section.className = "palette-section";
+        const title = document.createElement("h3");
+        title.textContent = label;
+        section.appendChild(title);
+
+        tiles.forEach(tile => {
+          const btn = document.createElement("button");
+          const img = document.createElement("img");
+          img.src = tileMap[tile];
+          btn.appendChild(img);
+          btn.onclick = () => {
+            document.querySelectorAll(".palette button").forEach(b => b.classList.remove("selected"));
+            document.getElementById("eraser").classList.remove("active");
+            btn.classList.add("selected");
+            currentTile = tile;
+          };
+          section.appendChild(btn);
+        });
+
+        paletteDiv.appendChild(section);
+      }
+    }
+
+    // Initialize the editor
+    function initEditor() {
+      buildPalette();
+      initGrid();
+      
+      // Set up event listeners for controls
+      document.getElementById("gridWidth").addEventListener("change", function() {
+        gridWidth = Math.min(9, Math.max(1, parseInt(this.value) || 1));
+        this.value = gridWidth;
+        initGrid();
+      });
+      
+      document.getElementById("gridHeight").addEventListener("change", function() {
+        gridHeight = Math.min(7, Math.max(1, parseInt(this.value) || 1));
+        this.value = gridHeight;
+        initGrid();
+      });
+      
+      document.getElementById("bgStyle").addEventListener("change", function() {
+        bgStyle = this.value;
+        initGrid();
+      });
+      
+      document.getElementById("clearGrid").addEventListener("click", function() {
+        if (confirm("you sure?? :<")) {
+          initGrid();
+        }
+      });
+      
+      document.getElementById("eraser").addEventListener("click", function() {
+        document.querySelectorAll(".palette button").forEach(b => b.classList.remove("selected"));
+        this.classList.toggle("active");
+        currentTile = this.classList.contains("active") ? bgStyle : null;
+      });
+    }
+
+    function exportLevel() {
+      const title = document.getElementById("title").value || "untitled";
+      const user = document.getElementById("username").value || "anon";
+      const desc = document.getElementById("desc").value;
+
+      let output = "`" + title + "` / `" + user + "`\n";
+      if (desc.trim() !== "") output += "`" + desc + "`\n";
+      output += "-+-+-+-+-+-+\n";
+
+      grid.forEach(row => {
+        output += row.join('') + "\n";
+      });
+
+      output += "-+-+-+-+-+-+\n";
+
+      navigator.clipboard.writeText(output).then(() => {
+        alert("level copied!!!");
+      });
+    }
+
+    // Initialize the editor when the page loads
+    window.onload = initEditor;
+  </script>
+</body>
+</html>
